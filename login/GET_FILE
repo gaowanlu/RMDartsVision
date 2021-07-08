@@ -1,0 +1,8 @@
+HTTP/1.1 200 OK
+Server: DrcomServer1.2
+Access-Control-Allow-Origin: *
+Content-Type: application/javascript; charset=gbk
+Cache-Control: no-cache
+Content-Length: 559
+
+     dr1003({"result":1,"aolno":24136,"m46":0,"v46ip":"10.60.67.98","myv6ip":"","sms":0,"ufee":0,"NID":"¸ßÍòÂ»","olno":2,"udate":"","olmac":"000000000000","ollm":0,"olm1":"00000000","olm2":"0000","olm3":0,"olmm":2,"olm5":0,"gid":14,"olno":2,"olip":"10.34.59.167","oaf":555341,"oat":13236,"mac1":"907841da5962","mac2":"907841da5962","mac3":"90f052943346","mac4":"","mac5":"","mac6":"","ac0":"MTkwMTQyMDMxMw==","oltime":4294967295,"olflow":4294967295,"lip":"10.60.67.98","stime":"2021-06-13 20:56:23","etime":"2021-06-13 21:15:08","uid":"1901420313","sv":0})   
