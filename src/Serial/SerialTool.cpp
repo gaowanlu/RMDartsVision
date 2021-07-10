@@ -13,17 +13,45 @@
 #include"SerialTool.h"
 
 //串口线程函数 接受参数为SerialTool对象指针
-void SERIALTOOL_THREAD_FUNCTION(void*serialObject){
-    printf("SerialTool::开启串口读线程\n");
+void* SERIALTOOL_THREAD_FUNCTION(void*serialObject){
+    extern pthread_mutex_t SERIALTOOL_THREAD_COMBUFFER_MUTEX;
+    printf("[SerialTool::开启串口读线程]::SERIALTOOL_THREAD_FUNCTION\n");
     SerialTool*obj=(SerialTool*)serialObject;
     int size=obj->getSize();
     char* buffer=(char*)obj->getBuffer();
     //不断地读取数据有数据就读到buffer内
+    fd_set rd;
+    FD_ZERO(&rd);
+    int fd=obj->getfd();
+    FD_SET(fd,&rd);
+    int nread;
+    int select_ret=-1;
+    char array[10];
+    while(FD_ISSET(fd,&rd)){
+    	printf("fd=%d\n",fd);
+	    FD_ZERO(&rd);
+	    FD_SET(fd,&rd);
+	    select_ret=select(fd+1,&rd,NULL,NULL,NULL);
+    	if(select_ret<0){
+		        perror("[SerialTool::writeData] select_ret<0");
+        }else{
+            //LOCK
+            pthread_mutex_lock(&SERIALTOOL_THREAD_COMBUFFER_MUTEX);
+		    memset(buffer,0,size);
+		    while((nread=read(fd,buffer,size))>0){
+			    //printf("[SERIALTOOL_THREAD_FUNCTION] Receive Data Size:%d\n",nread);
+		    }
+            //UNLOCK
+            pthread_mutex_unlock(&SERIALTOOL_THREAD_COMBUFFER_MUTEX);
+    	}
+	    usleep(10);//100ms
+    }
+    return NULL;
 }
 
 //打开串口设备
 int SerialTool::openPort(const char*serialPath){
-    int fd=-1;
+    fd=-1;
     fd=open(serialPath,O_RDWR|O_NOCTTY|O_NDELAY);
     /*O_RDWR 可以读写
      *O_NOCTTY 该参数不会使打开的文件成为该进程的控制终端。
@@ -90,11 +118,11 @@ int SerialTool::setSerialParam(int nSpeed,int nBits,char nEvent,int nStop){
     tcflush(fd,TCIFLUSH);
     //设置参数
     if((tcsetattr(fd,TCSANOW,&newtio))!=0){
-        perror("[SerialTool::openPort] 设置串口参数失败");//设置失败
+        perror("[SerialTool::openPort] 设置串口参数失败\n");//设置失败
         return -1;
     }
     //设置完毕
-    printf("[SerialTool::openPort] 设置串口参数成功]");
+    printf("[SerialTool::openPort] 设置串口参数成功]\n");
     return 0;
 }
 
@@ -105,47 +133,35 @@ void  SerialTool::closeSerial(){
 
 //初始化
 int SerialTool::init(void*buffer,int size,const char*path,int nSpeed,int nBits,int nEvent,int nStop){
-    fd_set rd;   
-    this->fd=fd;
+    //fd_set rd;
+    this->size=size;   
     this->nSpeed=nSpeed;
     this->nBits=nBits;
     this->nEvent=nEvent;
     this->nStop=nStop;
+    this->buffer=(unsigned char*)buffer;
     //打开串口
-    if(openPort(path)==-1){
+    if(openPort(path)<0){
+	    printf("[SerialTool.cpp::init] openPort Error");
         return 0;
     }
     //设置串口参数
-    if(setSerialParam(this->fd,this->nSpeed,this->nBits,this->nEvent,this->nStop)!=0){
+    int i;
+    if(0!=setSerialParam(this->nSpeed,this->nBits,this->nEvent,this->nStop)){
         return 0;//设置串口参数失败
     }
     //开启串口线程
-    pthread_create(&this->threadId,NULL,SERIALTOOL_THREAD_FUNCTION,this);
+    pthread_create(&threadId,NULL,SERIALTOOL_THREAD_FUNCTION,this);
+    printf("\n[SerialTool.cpp::init] START SERIAL THREAD SUCESS\n");
     return 1;//初始化成功
-
-    // FD_ZERO(&rd);
-    // FD_SET(fd,&rd);
-    // while(FD_ISSET(fd,&rd)){
-    //     //检测未见标识符的IO有没有准备好,检测有没有数据
-    //     if(select(fd+1,&rd,NULL,NULL,NULL)<0){
-    //         perror("select");
-    //     }else{//没有数据不会执行else代码块
-    //         memset(buff,0,128);
-    //         while((nread=read(fd,buff,128))>0){
-    //             printf("数据共%d字节|内容:%s\n",nread,buff);
-    //             write(fd,buff,strlen(buff));//会送数据
-    //         }
-    //     }
-    // }
-
-    return 0;
 }
 
 //构造函数
 SerialTool::SerialTool(){
     fd=-1;
-
+    printf("[SerialTool.cpp::SerialTool] Create Serial Tool Object ... \n");
 }
+
 
 //析构函数
 SerialTool::~SerialTool(){
@@ -155,9 +171,13 @@ SerialTool::~SerialTool(){
 }
 
 
+
 //发送数据接口
 int SerialTool::writeData(void*data,int size){
-    return 0;
+    unsigned char* buff=(unsigned char*)data;
+    write(fd,buff,size);//SEND DATA
+    //printf("[SerialTool::writeData] Send Data Size:%d\n",size);
+    return 1;
 }
 
 
@@ -169,64 +189,7 @@ int SerialTool::getSize(){
     return this->size;
 }
 
+int SerialTool::getfd(){
+    return this->fd;
+}
 
-
-// //串口线程函数
-// void* serial_thread(void *d){
-//     //获得串口文件标识符
-//     int i=0;
-//     int tfd=*(int*)d;
-//     if(tfd>0){
-//         while(1){
-//             char buf[20],str[]="oooooooooo";
-//             if(i<10){
-//                 str[i]='*';
-//             }else{
-//                 str[19-i]='*';
-//             }
-//             i%=20;
-//             sprintf(buf,"%s\r\n",str);
-//             write(tfd,buf,strlen(buf));
-//             usleep(100000);//延时100ms
-//         }
-//     }
-//     return 0;
-// }
-
-
-// //主函数
-// int main(int argc,char**argv){
-//     int fd,nread,i;
-//     char buff[128]="Hello\n";
-//     fd_set rd;
-//     if((fd=open_port(2))<0){//打开串口
-//         perror("open_port error");
-//         return -1;
-//     }
-//     //设置串口参数
-//     if((i=set_opt(fd,9600,8,'N',1))<0){
-//         perror("set_opt error");
-//         return -1;
-//     }
-//     //打开串口成功后，开启串口线程
-//     printf("开启串口线程\n");
-//     pthread_t id;
-//     pthread_create(&id,NULL,serial_thread,&fd);
-
-//     FD_ZERO(&rd);
-//     FD_SET(fd,&rd);
-//     while(FD_ISSET(fd,&rd)){
-//         //检测未见标识符的IO有没有准备好,检测有没有数据
-//         if(select(fd+1,&rd,NULL,NULL,NULL)<0){
-//             perror("select");
-//         }else{//没有数据不会执行else代码块
-//             memset(buff,0,128);
-//             while((nread=read(fd,buff,128))>0){
-//                 printf("数据共%d字节|内容:%s\n",nread,buff);
-//                 write(fd,buff,strlen(buff));//会送数据
-//             }
-//         }
-//     }
-//     close(fd);
-//     return 0;
-// }

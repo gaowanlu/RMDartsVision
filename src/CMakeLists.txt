@@ -24,5 +24,9 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 # 生成可执行文件以及相关依赖
 add_executable(${PROJECT_NAME} ${SRC_LIST} ${CAMARA}  ${GREEN_SPOT} ${SERIAL} ${DART_SOCKET})
 link_directories(${OpenCV_LIBRARY_DIRS})
+
+#pthread
+set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-pthread" LINK_FLAGS "-pthread")
+
 # 连接动态库
-target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS})
+target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS}  pthread)
